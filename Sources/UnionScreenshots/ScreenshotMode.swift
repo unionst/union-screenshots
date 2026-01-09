@@ -352,33 +352,42 @@ private struct BackgroundColorSampler: UIViewRepresentable {
 
         @MainActor
         private func pixelColor(in window: UIWindow, at point: CGPoint) -> UIColor? {
-            let size = CGSize(width: 1, height: 1)
+            // Create a 1x1 bitmap context with a known RGBA format
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            var pixel: [UInt8] = [0, 0, 0, 0]
 
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1
-            format.opaque = false  // Allow transparency detection
-
-            let renderer = UIGraphicsImageRenderer(size: size, format: format)
-            let image = renderer.image { ctx in
-                ctx.cgContext.translateBy(x: -point.x, y: -point.y)
-                window.layer.render(in: ctx.cgContext)
-            }
-
-            guard let cgImage = image.cgImage,
-                  let dataProvider = cgImage.dataProvider,
-                  let data = dataProvider.data,
-                  let bytes = CFDataGetBytePtr(data) else {
+            guard let context = CGContext(
+                data: &pixel,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
                 return nil
             }
 
-            // UIGraphicsImageRenderer uses BGRA format on iOS
-            let r = CGFloat(bytes[0]) / 255.0
-            let g = CGFloat(bytes[1]) / 255.0
-            let b = CGFloat(bytes[2]) / 255.0
-            let a = CGFloat(bytes[3]) / 255.0
+            // Translate so the target point renders at (0,0)
+            context.translateBy(x: -point.x, y: -point.y)
+            window.layer.render(in: context)
 
-            // If the sampled pixel is mostly transparent, fall back to system background
+            // Now we have known RGBA format
+            let r = CGFloat(pixel[0]) / 255.0
+            let g = CGFloat(pixel[1]) / 255.0
+            let b = CGFloat(pixel[2]) / 255.0
+            let a = CGFloat(pixel[3]) / 255.0
+
+            // If the sampled pixel is mostly transparent, use the window's
+            // actual background color rather than the semantic systemBackground
             if a < 0.5 {
+                if let windowBgColor = window.backgroundColor, windowBgColor != .clear {
+                    return windowBgColor
+                }
+                if let rootBgColor = window.rootViewController?.view.backgroundColor, rootBgColor != .clear {
+                    return rootBgColor
+                }
+                // Last resort fallback
                 return UIColor.systemBackground
             }
 
