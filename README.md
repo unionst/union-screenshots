@@ -51,7 +51,9 @@ Text("CONFIDENTIAL")
     .screenshotMode(.watermark)
 ```
 
-The background color is automatically sampled. For explicit control:
+The background color is automatically sampled. Watermarks work best on solid, opaque backgrounds.
+
+For explicit control:
 
 ```swift
 Text("CONFIDENTIAL")
