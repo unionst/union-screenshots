@@ -94,9 +94,15 @@ private struct SecureContentView<Content: View>: View {
     }
 
     var body: some View {
-        SecureContainer {
-            content
-        }
+        // Hidden content establishes the size
+        content
+            .hidden()
+            .overlay(
+                // Secure container fills the space
+                SecureContainer {
+                    content
+                }
+            )
     }
 }
 
