@@ -110,30 +110,35 @@ private struct SecureContentView<Content: View>: View {
 private struct AutoWatermarkContentView<Content: View>: View {
     let content: Content
     @State private var sampledColor: Color?
+    @Environment(\.colorScheme) private var colorScheme
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
-        ZStack {
-            // Content underneath - visible in screenshots
-            content
+        // Hidden content for sizing - keeps watermark text invisible during sampling
+        content
+            .hidden()
+            .background(
+                BackgroundColorSampler(id: colorScheme) { color in
+                    sampledColor = color
+                }
+            )
+            .overlay {
+                // Only show content after sampling completes
+                if let sampledColor {
+                    ZStack {
+                        content
 
-            // Secure opaque layer on top - hides content normally, disappears in screenshots
-            if let sampledColor {
-                SecureContainer {
-                    Rectangle()
-                        .fill(sampledColor)
-                        .ignoresSafeArea()
+                        SecureContainer {
+                            Rectangle()
+                                .fill(sampledColor)
+                                .ignoresSafeArea()
+                        }
+                    }
                 }
             }
-        }
-        .background(
-            BackgroundColorSampler { color in
-                sampledColor = color
-            }
-        )
     }
 }
 
@@ -232,7 +237,8 @@ private struct _SecureContainerHelper<Content: View>: UIViewRepresentable {
 
 // MARK: - Background Color Sampler
 
-private struct BackgroundColorSampler: UIViewRepresentable {
+private struct BackgroundColorSampler<ID: Equatable>: UIViewRepresentable {
+    var id: ID
     var onColor: @MainActor (Color) -> Void
 
     func makeUIView(context: Context) -> SamplerView {
@@ -243,17 +249,25 @@ private struct BackgroundColorSampler: UIViewRepresentable {
 
     func updateUIView(_ uiView: SamplerView, context: Context) {
         uiView.onColor = onColor
+
+        // Re-sample if ID changed (e.g., color scheme)
+        if uiView.lastSampledID as? ID != id {
+            uiView.lastSampledID = id
+            uiView.sample()
+        }
     }
 
     final class SamplerView: UIView {
         var onColor: (@MainActor (Color) -> Void)?
-        private var didSample = false
+        var lastSampledID: Any?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            guard !didSample, window != nil else { return }
-            didSample = true
+            guard window != nil else { return }
+            sample()
+        }
 
+        func sample() {
             Task { @MainActor in
                 // Small delay to ensure the view hierarchy is fully rendered
                 try? await Task.sleep(for: .milliseconds(50))
