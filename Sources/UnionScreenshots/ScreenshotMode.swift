@@ -104,6 +104,7 @@ private struct SecureContentView<Content: View>: View {
             )
             .overlayPreferenceValue(ScreenshotModeSizeKey.self) { _ in
                 SecureContainerView(content: content)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
     }
 }
@@ -137,6 +138,7 @@ private struct WatermarkContentView<Content: View>: View {
                     SecureContainerView(
                         content: Rectangle().fill(background)
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
     }
