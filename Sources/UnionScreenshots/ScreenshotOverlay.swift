@@ -87,25 +87,45 @@ private struct ScreenshotOverlayContentView<OverlayContent: View>: View {
     let alignment: HorizontalAlignment
     let content: () -> OverlayContent
 
+    // Dynamic Island dimensions
+    private let dynamicIslandWidth: CGFloat = 120
+    private let dynamicIslandHeight: CGFloat = 36
+
+    // Notch dimensions
+    private let notchWidth: CGFloat = 210
+    private let notchHeight: CGFloat = 30
+
     var body: some View {
         GeometryReader { proxy in
-            content()
-                .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-                .offset(y: offset(for: displayType, safeAreaTop: proxy.safeAreaInsets.top))
+            let safeAreaTop = proxy.safeAreaInsets.top
+            let frame = frame(for: displayType, safeAreaTop: safeAreaTop, screenWidth: proxy.size.width)
+
+            if alignment == .center {
+                content()
+                    .frame(width: frame.width, height: frame.height)
+                    .frame(maxWidth: .infinity)
+                    .offset(y: frame.minY)
+            } else {
+                content()
+                    .frame(height: frame.height)
+                    .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+                    .offset(y: frame.minY)
+            }
         }
         .ignoresSafeArea()
     }
 
-    private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
+    private func frame(for displayType: DisplayType, safeAreaTop: CGFloat, screenWidth: CGFloat) -> CGRect {
         switch displayType {
         case .dynamicIsland:
-            // Position at the Dynamic Island level
-            return 11 + max((safeAreaTop - 59), 0)
+            let topOffset = 11 + max((safeAreaTop - 59), 0)
+            let x = (screenWidth - dynamicIslandWidth) / 2
+            return CGRect(x: x, y: topOffset, width: dynamicIslandWidth, height: dynamicIslandHeight)
         case .notch:
-            // Position at the notch level
-            return 0
+            let x = (screenWidth - notchWidth) / 2
+            return CGRect(x: x, y: 0, width: notchWidth, height: notchHeight)
         case .none:
-            return 0
+            return .zero
         }
     }
 }
