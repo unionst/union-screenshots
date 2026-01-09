@@ -1,15 +1,15 @@
 # UnionScreenshots
 
-A SwiftUI package for displaying content behind the Dynamic Island or notch on iOS devices.
+A SwiftUI package for controlling view visibility during screen capture and displaying content behind the Dynamic Island.
 
 ![Demo](demo.gif)
 
 ## Features
 
-- Automatically detects device type (Dynamic Island, notch, or neither)
-- Creates a window overlay that persists across navigation
-- Pass-through touch handling for non-interactive content
-- Reactive visibility control
+- **Screenshot Mode**: Control how views appear in screenshots and screen recordings
+- **Dynamic Island Background**: Display content behind the Dynamic Island or notch
+- Automatic device type detection
+- Pass-through touch handling
 
 ## Requirements
 
@@ -26,49 +26,80 @@ dependencies: [
 ]
 ```
 
-## Usage
+## Screenshot Mode
+
+Control how views appear during screen capture using the `.screenshotMode()` modifier.
+
+### Secure (Hidden in Screenshots)
+
+Hide sensitive content from screenshots and screen recordings:
+
+```swift
+Text("Secret Code: 1234")
+    .screenshotMode(.secure)
+```
+
+### Watermark (Visible Only in Screenshots)
+
+Show content only when a screenshot is taken:
+
+```swift
+Text("CONFIDENTIAL")
+    .screenshotMode(.watermark(background: .white))
+```
+
+The background color is used to hide the watermark during normal viewing.
+
+### Visible (Normal Behavior)
+
+Use `.visible` for conditional logic:
+
+```swift
+Text("Hello")
+    .screenshotMode(isProtected ? .secure : .visible)
+```
+
+### API
+
+```swift
+enum ScreenshotMode {
+    case visible                        // Normal behavior
+    case secure                         // Hidden in screenshots
+    case watermark(background: Color)   // Visible only in screenshots
+}
+
+func screenshotMode(_ mode: ScreenshotMode) -> some View
+```
+
+## Dynamic Island Background
+
+Display content behind the Dynamic Island or notch.
 
 ### Basic Usage
 
 ```swift
-import UnionScreenshots
-
-struct ContentView: View {
-    var body: some View {
-        MyAppContent()
-            .dynamicIslandBackground {
-                Image(.logo)
-                    .resizable()
-                    .scaledToFit()
-            }
+ContentView()
+    .dynamicIslandBackground {
+        Image(.logo)
+            .resizable()
+            .scaledToFit()
     }
-}
 ```
 
 ### Conditional Visibility
 
-Control when the overlay is visible:
-
 ```swift
-struct ContentView: View {
-    @State private var showOverlay = false
-
-    var body: some View {
-        NavigationStack(path: $path) {
-            // ...
-        }
-        .dynamicIslandBackground(!path.isEmpty) {
-            Text("Recording")
-                .font(.caption)
-                .foregroundStyle(.red)
-        }
-    }
+NavigationStack(path: $path) {
+    // ...
+}
+.dynamicIslandBackground(!path.isEmpty) {
+    Text("Recording")
+        .font(.caption)
+        .foregroundStyle(.red)
 }
 ```
 
 ### Custom Alignment
-
-Align content to the leading or trailing edge:
 
 ```swift
 .dynamicIslandBackground(alignment: .leading) {
@@ -82,7 +113,7 @@ Align content to the leading or trailing edge:
 }
 ```
 
-## API
+### API
 
 ```swift
 func dynamicIslandBackground<Content: View>(
@@ -92,20 +123,11 @@ func dynamicIslandBackground<Content: View>(
 ) -> some View
 ```
 
-### Parameters
-
-- `isVisible`: Whether the overlay is visible (default: `true`)
-- `alignment`: Horizontal alignment of the content (default: `.center`)
-- `content`: A view builder that creates the content to display
-
 ## How It Works
 
-The modifier creates a separate `UIWindow` overlay at a high window level that sits above your app's content. This allows the content to persist across navigation transitions and appear behind the Dynamic Island cutout.
+**Screenshot Mode** leverages the same mechanism iOS uses for `SecureField` to hide content from screen capture. Content inside a secure container is visible during normal use but hidden in screenshots, recordings, and screen mirroring.
 
-The overlay automatically:
-- Detects the device's display type based on safe area insets
-- Positions content at the correct offset for Dynamic Island or notch
-- Passes through touches to the underlying content
+**Dynamic Island Background** creates a separate `UIWindow` overlay at a high window level that persists across navigation and appears behind the Dynamic Island cutout.
 
 ## License
 

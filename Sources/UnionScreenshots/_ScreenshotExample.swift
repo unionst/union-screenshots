@@ -12,11 +12,13 @@ import SwiftUI
 /// This view demonstrates:
 /// - `.screenshotMode(.secure)` - content hidden in screenshots
 /// - `.screenshotMode(.watermark)` - content visible only in screenshots
+/// - `.screenshotMode(.visible)` - normal behavior (for conditional logic)
 /// - Dynamic Island background overlay
 public struct _ScreenshotExample: View {
 
     @State private var showDynamicIslandOverlay = true
     @State private var secretText = "Secret: 1234-5678"
+    @State private var isProtected = true
 
     public init() {}
 
@@ -25,6 +27,7 @@ public struct _ScreenshotExample: View {
             List {
                 secureSection
                 watermarkSection
+                conditionalSection
                 dynamicIslandSection
                 instructionsSection
             }
@@ -96,7 +99,6 @@ public struct _ScreenshotExample: View {
                     .font(.headline)
 
                 ZStack {
-                    // This is the normal content
                     VStack(spacing: 8) {
                         Text("Normal viewing")
                             .font(.body)
@@ -109,7 +111,6 @@ public struct _ScreenshotExample: View {
                     .background(Color(.systemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    // This watermark only appears in screenshots
                     Text("SCREENSHOT")
                         .font(.title2)
                         .fontWeight(.black)
@@ -127,6 +128,32 @@ public struct _ScreenshotExample: View {
             Text(".screenshotMode(.watermark)")
         } footer: {
             Text("The watermark only appears when you take a screenshot.")
+        }
+    }
+
+    // MARK: - Conditional Section
+
+    private var conditionalSection: some View {
+        Section {
+            Toggle("Protection Enabled", isOn: $isProtected)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Conditional Protection")
+                    .font(.headline)
+
+                Text("Toggle to change mode")
+                    .font(.body)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(.purple.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .screenshotMode(isProtected ? .secure : .visible)
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text(".screenshotMode(.visible)")
+        } footer: {
+            Text("Use .visible for conditional logic: .screenshotMode(isProtected ? .secure : .visible)")
         }
     }
 
