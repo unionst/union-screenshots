@@ -2,6 +2,8 @@
 
 A SwiftUI package for displaying content behind the Dynamic Island or notch on iOS devices.
 
+![Demo](demo.gif)
+
 ## Features
 
 - Automatically detects device type (Dynamic Island, notch, or neither)
