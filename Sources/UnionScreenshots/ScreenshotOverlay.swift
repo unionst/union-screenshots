@@ -80,9 +80,9 @@ private struct WindowExtractor: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
-// MARK: - Screenshot Overlay Content View
+// MARK: - Dynamic Island Background Content View
 
-private struct ScreenshotOverlayContentView<OverlayContent: View>: View {
+private struct DynamicIslandBackgroundContentView<OverlayContent: View>: View {
     let displayType: DisplayType
     let alignment: HorizontalAlignment
     let content: () -> OverlayContent
@@ -130,9 +130,9 @@ private struct ScreenshotOverlayContentView<OverlayContent: View>: View {
     }
 }
 
-// MARK: - Screenshot Overlay Modifier
+// MARK: - Dynamic Island Background Modifier
 
-private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
+private struct DynamicIslandBackgroundModifier<OverlayContent: View>: ViewModifier {
     let alignment: HorizontalAlignment
     let overlayContent: () -> OverlayContent
 
@@ -174,7 +174,7 @@ private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
             return
         }
 
-        let hostingView = ScreenshotOverlayContentView(
+        let hostingView = DynamicIslandBackgroundContentView(
             displayType: displayType,
             alignment: alignment,
             content: overlayContent
@@ -200,21 +200,21 @@ public extension View {
     /// - Parameters:
     ///   - alignment: The horizontal alignment of the content (default: .center)
     ///   - content: A view builder that creates the content to display
-    /// - Returns: A view with the screenshot overlay applied
+    /// - Returns: A view with the Dynamic Island background applied
     ///
     /// Example:
     /// ```swift
     /// ContentView()
-    ///     .screenshotOverlay {
+    ///     .dynamicIslandBackground {
     ///         Text("Recording")
     ///             .font(.caption)
     ///             .foregroundStyle(.red)
     ///     }
     /// ```
-    func screenshotOverlay<Content: View>(
+    func dynamicIslandBackground<Content: View>(
         alignment: HorizontalAlignment = .center,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        modifier(ScreenshotOverlayModifier(alignment: alignment, overlayContent: content))
+        modifier(DynamicIslandBackgroundModifier(alignment: alignment, overlayContent: content))
     }
 }
