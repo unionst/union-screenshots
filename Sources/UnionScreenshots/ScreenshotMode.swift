@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import CoreImage
-import CoreImage.CIFilterBuiltins
 
 // MARK: - Screenshot Mode
 
@@ -121,9 +119,10 @@ private struct AutoWatermarkContentView<Content: View>: View {
         content
             .hidden()
             .background(
-                BackgroundColorSampler(id: colorScheme) { color in
+                BackgroundColorSampler { color in
                     sampledColor = color
                 }
+                .id(colorScheme) // Force recreation on color scheme change
             )
             .overlay {
                 // Only show content after sampling completes
@@ -138,6 +137,9 @@ private struct AutoWatermarkContentView<Content: View>: View {
                         }
                     }
                 }
+            }
+            .onChange(of: colorScheme) {
+                sampledColor = nil // Reset to trigger re-sample
             }
     }
 }
@@ -237,8 +239,7 @@ private struct _SecureContainerHelper<Content: View>: UIViewRepresentable {
 
 // MARK: - Background Color Sampler
 
-private struct BackgroundColorSampler<ID: Equatable>: UIViewRepresentable {
-    var id: ID
+private struct BackgroundColorSampler: UIViewRepresentable {
     var onColor: @MainActor (Color) -> Void
 
     func makeUIView(context: Context) -> SamplerView {
@@ -249,28 +250,18 @@ private struct BackgroundColorSampler<ID: Equatable>: UIViewRepresentable {
 
     func updateUIView(_ uiView: SamplerView, context: Context) {
         uiView.onColor = onColor
-
-        // Re-sample if ID changed (e.g., color scheme)
-        if uiView.lastSampledID as? ID != id {
-            uiView.lastSampledID = id
-            uiView.sample()
-        }
     }
 
     final class SamplerView: UIView {
         var onColor: (@MainActor (Color) -> Void)?
-        var lastSampledID: Any?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
             guard window != nil else { return }
-            sample()
-        }
 
-        func sample() {
             Task { @MainActor in
-                // Small delay to ensure the view hierarchy is fully rendered
-                try? await Task.sleep(for: .milliseconds(50))
+                // Delay to ensure the view hierarchy is fully rendered
+                try? await Task.sleep(for: .milliseconds(100))
                 if let color = self.sampleBackgroundColor() {
                     self.onColor?(Color(uiColor: color))
                 }
@@ -281,67 +272,59 @@ private struct BackgroundColorSampler<ID: Equatable>: UIViewRepresentable {
         private func sampleBackgroundColor() -> UIColor? {
             guard let window = self.window else { return nil }
 
-            let inset: CGFloat = 2
-            let rectInWindow = self
-                .convert(self.bounds.insetBy(dx: inset, dy: inset), to: window)
-                .integral
-                .intersection(window.bounds)
+            // Ensure we have valid bounds before sampling
+            guard bounds.width > 0, bounds.height > 0 else { return nil }
 
-            guard rectInWindow.width > 1, rectInWindow.height > 1 else { return nil }
-
+            // Hide just ourselves during sampling
             let wasHidden = self.isHidden
             self.isHidden = true
             defer { self.isHidden = wasHidden }
 
-            guard let cgImage = snapshot(window: window, rect: rectInWindow) else { return nil }
-            return averageColor(from: cgImage)
+            // Sample a single pixel at the center of our bounds
+            let centerInWindow = self.convert(
+                CGPoint(x: bounds.midX, y: bounds.midY),
+                to: window
+            )
+
+            // Validate the point is within the window
+            guard window.bounds.contains(centerInWindow) else { return nil }
+
+            return pixelColor(in: window, at: centerInWindow)
         }
 
         @MainActor
-        private func snapshot(window: UIWindow, rect: CGRect) -> CGImage? {
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = window.screen.scale
-            format.opaque = false
+        private func pixelColor(in window: UIWindow, at point: CGPoint) -> UIColor? {
+            let size = CGSize(width: 1, height: 1)
 
-            let renderer = UIGraphicsImageRenderer(size: rect.size, format: format)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            format.opaque = false  // Allow transparency detection
+
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
             let image = renderer.image { ctx in
-                ctx.cgContext.translateBy(x: -rect.minX, y: -rect.minY)
+                ctx.cgContext.translateBy(x: -point.x, y: -point.y)
                 window.layer.render(in: ctx.cgContext)
             }
 
-            return image.cgImage
-        }
+            guard let cgImage = image.cgImage,
+                  let dataProvider = cgImage.dataProvider,
+                  let data = dataProvider.data,
+                  let bytes = CFDataGetBytePtr(data) else {
+                return nil
+            }
 
-        private func averageColor(from cgImage: CGImage) -> UIColor? {
-            let ciContext = CIContext(options: [
-                .workingColorSpace: NSNull(),
-                .outputColorSpace: NSNull()
-            ])
+            // UIGraphicsImageRenderer uses BGRA format on iOS
+            let r = CGFloat(bytes[0]) / 255.0
+            let g = CGFloat(bytes[1]) / 255.0
+            let b = CGFloat(bytes[2]) / 255.0
+            let a = CGFloat(bytes[3]) / 255.0
 
-            let input = CIImage(cgImage: cgImage)
+            // If the sampled pixel is mostly transparent, fall back to system background
+            if a < 0.5 {
+                return UIColor.systemBackground
+            }
 
-            let filter = CIFilter.areaAverage()
-            filter.inputImage = input
-            filter.extent = input.extent
-
-            guard let output = filter.outputImage else { return nil }
-
-            var rgba = [UInt8](repeating: 0, count: 4)
-            ciContext.render(
-                output,
-                toBitmap: &rgba,
-                rowBytes: 4,
-                bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                format: .RGBA8,
-                colorSpace: CGColorSpaceCreateDeviceRGB()
-            )
-
-            return UIColor(
-                red: CGFloat(rgba[0]) / 255,
-                green: CGFloat(rgba[1]) / 255,
-                blue: CGFloat(rgba[2]) / 255,
-                alpha: CGFloat(rgba[3]) / 255
-            )
+            return UIColor(red: r, green: g, blue: b, alpha: 1.0)
         }
     }
 }
