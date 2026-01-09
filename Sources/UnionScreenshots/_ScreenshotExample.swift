@@ -99,6 +99,7 @@ public struct _ScreenshotExample: View {
                     .font(.headline)
 
                 ZStack {
+                    // Normal content - always visible
                     VStack(spacing: 8) {
                         Text("Normal viewing")
                             .font(.body)
@@ -108,20 +109,18 @@ public struct _ScreenshotExample: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(.systemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
 
+                    // Watermark - only visible in screenshots
+                    // Must fill the space so its background covers the area
                     Text("SCREENSHOT")
                         .font(.title2)
                         .fontWeight(.black)
                         .foregroundStyle(.red.opacity(0.6))
-                        .screenshotMode(.watermark)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .screenshotMode(.watermark(background: Color(.secondarySystemGroupedBackground)))
                 }
+                .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(.secondary.opacity(0.3), lineWidth: 1)
-                )
             }
             .padding(.vertical, 8)
         } header: {

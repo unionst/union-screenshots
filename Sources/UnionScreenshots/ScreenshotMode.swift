@@ -102,8 +102,8 @@ private struct SecureContentView<Content: View>: View {
                         .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
                 }
             )
-            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { size in
-                SecureContainerView(content: content, size: size)
+            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { _ in
+                SecureContainerView(content: content)
             }
     }
 }
@@ -128,15 +128,14 @@ private struct WatermarkContentView<Content: View>: View {
                         .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
                 }
             )
-            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { size in
+            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { _ in
                 ZStack {
                     // Content underneath - visible in screenshots
                     content
 
                     // Secure opaque layer on top - hides content normally, disappears in screenshots
                     SecureContainerView(
-                        content: Rectangle().fill(background).ignoresSafeArea(),
-                        size: size
+                        content: Rectangle().fill(background)
                     )
                 }
             }
@@ -157,7 +156,6 @@ private struct ScreenshotModeSizeKey: PreferenceKey {
 
 private struct SecureContainerView<Content: View>: UIViewRepresentable {
     let content: Content
-    let size: CGSize
 
     func makeUIView(context: Context) -> UIView {
         let secureField = UITextField()
