@@ -99,11 +99,11 @@ private struct ScreenshotOverlayContentView<OverlayContent: View>: View {
     private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
         switch displayType {
         case .dynamicIsland:
-            // Position below the Dynamic Island
-            return 11 + 37 + 8
+            // Position at the Dynamic Island level
+            return 11 + max((safeAreaTop - 59), 0)
         case .notch:
-            // Position below the notch
-            return safeAreaTop + 8
+            // Position at the notch level
+            return 0
         case .none:
             return 0
         }
