@@ -62,6 +62,26 @@ public extension View {
     func screenshotMode(_ mode: ScreenshotMode) -> some View {
         modifier(ScreenshotModeModifier(mode: mode))
     }
+
+    /// Replaces this view with different content during screen capture.
+    ///
+    /// The original view is shown during normal use, but when a screenshot
+    /// or screen recording is taken, the replacement content appears instead.
+    ///
+    /// ```swift
+    /// Text("Secret: 1234")
+    ///     .captureReplacement {
+    ///         Text("Nice try!")
+    ///     }
+    /// ```
+    ///
+    /// - Parameter replacement: A view builder that creates the replacement content.
+    /// - Returns: A view that swaps content during screen capture.
+    func captureReplacement<Replacement: View>(
+        @ViewBuilder _ replacement: @escaping () -> Replacement
+    ) -> some View {
+        modifier(CaptureReplacementModifier(replacement: replacement))
+    }
 }
 
 // MARK: - Modifier
@@ -80,6 +100,44 @@ private struct ScreenshotModeModifier: ViewModifier {
         case ._watermarkWithBackground(let background):
             WatermarkContentView(background: background) { content }
         }
+    }
+}
+
+// MARK: - Capture Replacement Modifier
+
+private struct CaptureReplacementModifier<Replacement: View>: ViewModifier {
+    let replacement: () -> Replacement
+
+    func body(content: Content) -> some View {
+        CaptureReplacementView(replacement: replacement) { content }
+    }
+}
+
+// MARK: - Capture Replacement View
+
+private struct CaptureReplacementView<Original: View, Replacement: View>: View {
+    let original: Original
+    let replacement: () -> Replacement
+
+    init(replacement: @escaping () -> Replacement, @ViewBuilder original: () -> Original) {
+        self.original = original()
+        self.replacement = replacement
+    }
+
+    var body: some View {
+        original
+            .hidden()
+            .overlay {
+                // Original content - visible normally, hidden in screenshots
+                SecureContainer {
+                    original
+                }
+            }
+            .overlay {
+                // Replacement content - hidden normally, visible in screenshots
+                replacement()
+                    .screenshotMode(.watermark)
+            }
     }
 }
 

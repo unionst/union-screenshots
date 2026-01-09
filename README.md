@@ -9,7 +9,9 @@ A SwiftUI package for controlling view visibility during screen capture and disp
 ## Features
 
 - **Screenshot Mode**: Control how views appear in screenshots and screen recordings
+- **Capture Replacement**: Show different content in screenshots
 - **Dynamic Island Background**: Display content behind the Dynamic Island or notch
+- Automatic background color sampling for watermarks
 - Automatic device type detection
 - Pass-through touch handling
 
@@ -69,6 +71,19 @@ Text("Hello")
     .screenshotMode(isProtected ? .secure : .visible)
 ```
 
+### Capture Replacement
+
+Replace a view with different content in screenshots:
+
+```swift
+Text("Secret: 1234")
+    .captureReplacement {
+        Text("Nice try!")
+    }
+```
+
+The original view is shown during normal use, but when a screenshot is taken, the replacement content appears instead.
+
 ### API
 
 ```swift
@@ -80,6 +95,10 @@ enum ScreenshotMode {
 }
 
 func screenshotMode(_ mode: ScreenshotMode) -> some View
+
+func captureReplacement<Replacement: View>(
+    @ViewBuilder _ replacement: () -> Replacement
+) -> some View
 ```
 
 ## Dynamic Island Background

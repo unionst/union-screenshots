@@ -13,6 +13,7 @@ import SwiftUI
 /// - `.screenshotMode(.secure)` - content hidden in screenshots
 /// - `.screenshotMode(.watermark)` - content visible only in screenshots
 /// - `.screenshotMode(.visible)` - normal behavior (for conditional logic)
+/// - `.captureReplacement { }` - replace content in screenshots
 /// - Dynamic Island background overlay
 public struct _ScreenshotExample: View {
 
@@ -28,6 +29,7 @@ public struct _ScreenshotExample: View {
                 secureSection
                 watermarkSection
                 conditionalSection
+                replacementSection
                 dynamicIslandSection
                 instructionsSection
             }
@@ -156,6 +158,41 @@ public struct _ScreenshotExample: View {
         }
     }
 
+    // MARK: - Replacement Section
+
+    private var replacementSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Capture Replacement")
+                    .font(.headline)
+
+                Text("Secret: 1234-5678")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.blue)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.blue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .captureReplacement {
+                        Text("Nice try! 😏")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(.red.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text(".captureReplacement { }")
+        } footer: {
+            Text("The secret is replaced with different content in screenshots.")
+        }
+    }
+
     // MARK: - Dynamic Island Section
 
     private var dynamicIslandSection: some View {
@@ -193,6 +230,7 @@ public struct _ScreenshotExample: View {
                 instructionRow(number: 2, text: "Check the screenshot in Photos")
                 instructionRow(number: 3, text: "Secure content should be blank")
                 instructionRow(number: 4, text: "Watermark should be visible")
+                instructionRow(number: 5, text: "Replacement should show different content")
             }
             .padding(.vertical, 8)
         } header: {
