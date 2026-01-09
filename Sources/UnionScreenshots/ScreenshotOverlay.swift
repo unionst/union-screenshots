@@ -134,6 +134,7 @@ private struct DynamicIslandBackgroundContentView<OverlayContent: View>: View {
 
 private struct DynamicIslandBackgroundModifier<OverlayContent: View>: ViewModifier {
     let alignment: HorizontalAlignment
+    let isVisible: Bool
     let overlayContent: () -> OverlayContent
 
     @State private var overlayWindow: PassThroughWindow?
@@ -148,6 +149,9 @@ private struct DynamicIslandBackgroundModifier<OverlayContent: View>: ViewModifi
                 displayType = detectDisplayType()
             }
             .onChange(of: displayType) { _, newValue in
+                updateOverlayContent()
+            }
+            .onChange(of: isVisible) { _, _ in
                 updateOverlayContent()
             }
     }
@@ -169,7 +173,8 @@ private struct DynamicIslandBackgroundModifier<OverlayContent: View>: ViewModifi
     private func updateOverlayContent() {
         guard let window = overlayWindow,
               let displayType = displayType,
-              displayType != .none else {
+              displayType != .none,
+              isVisible else {
             overlayWindow?.isHidden = true
             return
         }
@@ -198,6 +203,7 @@ public extension View {
     /// On devices without either, the content is not displayed.
     ///
     /// - Parameters:
+    ///   - isVisible: Whether the overlay is visible (default: true)
     ///   - alignment: The horizontal alignment of the content (default: .center)
     ///   - content: A view builder that creates the content to display
     /// - Returns: A view with the Dynamic Island background applied
@@ -212,9 +218,10 @@ public extension View {
     ///     }
     /// ```
     func dynamicIslandBackground<Content: View>(
+        _ isVisible: Bool = true,
         alignment: HorizontalAlignment = .center,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        modifier(DynamicIslandBackgroundModifier(alignment: alignment, overlayContent: content))
+        modifier(DynamicIslandBackgroundModifier(alignment: alignment, isVisible: isVisible, overlayContent: content))
     }
 }
