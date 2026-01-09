@@ -82,7 +82,7 @@ private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
     func body(content: Content) -> some View {
         if let displayType {
             content
-                .overlay(alignment: .top) {
+                .overlay {
                     if displayType != .none {
                         overlayView(for: displayType)
                     }
@@ -102,8 +102,10 @@ private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
 
             overlayContent()
                 .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+                .frame(maxHeight: .infinity, alignment: .top)
                 .offset(y: offset(for: displayType, safeAreaTop: safeArea.top))
         }
+        .ignoresSafeArea()
     }
 
     private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
