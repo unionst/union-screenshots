@@ -71,9 +71,10 @@ Text("Hello")
 
 ```swift
 enum ScreenshotMode {
-    case visible                        // Normal behavior
-    case secure                         // Hidden in screenshots
-    case watermark(background: Color)   // Visible only in screenshots
+    case visible                              // Normal behavior
+    case secure                               // Hidden in screenshots
+    static var watermark                      // Visible only in screenshots (system background)
+    static func watermark(background: some ShapeStyle)  // Custom background
 }
 
 func screenshotMode(_ mode: ScreenshotMode) -> some View
