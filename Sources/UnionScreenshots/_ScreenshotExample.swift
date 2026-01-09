@@ -115,7 +115,7 @@ public struct _ScreenshotExample: View {
                         .font(.title2)
                         .fontWeight(.black)
                         .foregroundStyle(.red.opacity(0.6))
-                        .screenshotMode(.watermark(background: Color(.systemBackground)))
+                        .screenshotMode(.watermark)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay(

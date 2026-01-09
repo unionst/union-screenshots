@@ -18,8 +18,17 @@ public enum ScreenshotMode {
     case secure
 
     /// The view is only visible during screenshots and screen recordings.
-    /// The background color is used to hide the content during normal viewing.
-    case watermark(background: Color)
+    case _watermark(background: AnyShapeStyle)
+
+    /// Watermark using the system background style.
+    public static var watermark: ScreenshotMode {
+        ._watermark(background: AnyShapeStyle(.background))
+    }
+
+    /// Watermark with a custom background style.
+    public static func watermark<S: ShapeStyle>(background: S) -> ScreenshotMode {
+        ._watermark(background: AnyShapeStyle(background))
+    }
 }
 
 // MARK: - View Extension
@@ -42,7 +51,13 @@ public extension View {
     /// Use `.watermark` to show content only in screenshots (hidden during normal use):
     /// ```swift
     /// Text("CONFIDENTIAL")
-    ///     .screenshotMode(.watermark(background: .white))
+    ///     .screenshotMode(.watermark)  // uses system background
+    ///
+    /// Text("CONFIDENTIAL")
+    ///     .screenshotMode(.watermark(background: .white))  // custom color
+    ///
+    /// Text("CONFIDENTIAL")
+    ///     .screenshotMode(.watermark(background: .regularMaterial))  // material
     /// ```
     ///
     /// - Parameter mode: The screenshot behavior mode.
@@ -63,7 +78,7 @@ private struct ScreenshotModeModifier: ViewModifier {
             content
         case .secure:
             SecureContentView { content }
-        case .watermark(let background):
+        case ._watermark(let background):
             WatermarkContentView(background: background) { content }
         }
     }
@@ -96,10 +111,10 @@ private struct SecureContentView<Content: View>: View {
 // MARK: - Watermark Content View (visible only in capture)
 
 private struct WatermarkContentView<Content: View>: View {
-    let background: Color
+    let background: AnyShapeStyle
     let content: Content
 
-    init(background: Color, @ViewBuilder content: () -> Content) {
+    init(background: AnyShapeStyle, @ViewBuilder content: () -> Content) {
         self.background = background
         self.content = content()
     }
@@ -119,7 +134,10 @@ private struct WatermarkContentView<Content: View>: View {
                     content
 
                     // Secure opaque layer on top - hides content normally, disappears in screenshots
-                    SecureContainerView(content: background, size: size)
+                    SecureContainerView(
+                        content: Rectangle().fill(background).ignoresSafeArea(),
+                        size: size
+                    )
                 }
             }
     }

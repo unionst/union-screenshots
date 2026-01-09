@@ -45,10 +45,18 @@ Show content only when a screenshot is taken:
 
 ```swift
 Text("CONFIDENTIAL")
-    .screenshotMode(.watermark(background: .white))
+    .screenshotMode(.watermark)
 ```
 
-The background color is used to hide the watermark during normal viewing.
+By default, the system background is used to hide the watermark during normal viewing. You can specify any `ShapeStyle`:
+
+```swift
+Text("CONFIDENTIAL")
+    .screenshotMode(.watermark(background: .white))  // color
+
+Text("CONFIDENTIAL")
+    .screenshotMode(.watermark(background: .regularMaterial))  // material
+```
 
 ### Visible (Normal Behavior)
 
