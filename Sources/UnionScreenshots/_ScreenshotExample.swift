@@ -117,7 +117,7 @@ public struct _ScreenshotExample: View {
                         .fontWeight(.black)
                         .foregroundStyle(.red.opacity(0.6))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .screenshotMode(.watermark(background: Color(.secondarySystemGroupedBackground)))
+                        .screenshotMode(.watermark)  // auto-detects background!
                 }
                 .background(Color(.secondarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))

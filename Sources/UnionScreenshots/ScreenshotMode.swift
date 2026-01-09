@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import CoreImage
+import CoreImage.CIFilterBuiltins
 
 // MARK: - Screenshot Mode
 
 /// Defines how a view behaves during screen capture.
-public enum ScreenshotMode {
+public enum ScreenshotMode: Sendable {
     /// The view behaves normally, visible in both regular viewing and screenshots.
     case visible
 
@@ -18,16 +20,16 @@ public enum ScreenshotMode {
     case secure
 
     /// The view is only visible during screenshots and screen recordings.
-    case _watermark(background: AnyShapeStyle)
+    /// Automatically samples the background color behind the view.
+    case watermark
 
-    /// Watermark using the system background style.
-    public static var watermark: ScreenshotMode {
-        ._watermark(background: AnyShapeStyle(.background))
-    }
+    /// The view is only visible during screenshots and screen recordings.
+    /// Uses a custom background style to hide the content during normal viewing.
+    case _watermarkWithBackground(AnyShapeStyle)
 
     /// Watermark with a custom background style.
     public static func watermark<S: ShapeStyle>(background: S) -> ScreenshotMode {
-        ._watermark(background: AnyShapeStyle(background))
+        ._watermarkWithBackground(AnyShapeStyle(background))
     }
 }
 
@@ -51,13 +53,10 @@ public extension View {
     /// Use `.watermark` to show content only in screenshots (hidden during normal use):
     /// ```swift
     /// Text("CONFIDENTIAL")
-    ///     .screenshotMode(.watermark)  // uses system background
+    ///     .screenshotMode(.watermark)  // auto-detects background
     ///
     /// Text("CONFIDENTIAL")
-    ///     .screenshotMode(.watermark(background: .white))  // custom color
-    ///
-    /// Text("CONFIDENTIAL")
-    ///     .screenshotMode(.watermark(background: .regularMaterial))  // material
+    ///     .screenshotMode(.watermark(background: .white))  // explicit background
     /// ```
     ///
     /// - Parameter mode: The screenshot behavior mode.
@@ -78,7 +77,9 @@ private struct ScreenshotModeModifier: ViewModifier {
             content
         case .secure:
             SecureContentView { content }
-        case ._watermark(let background):
+        case .watermark:
+            AutoWatermarkContentView { content }
+        case ._watermarkWithBackground(let background):
             WatermarkContentView(background: background) { content }
         }
     }
@@ -94,11 +95,9 @@ private struct SecureContentView<Content: View>: View {
     }
 
     var body: some View {
-        // Hidden content establishes the size
         content
             .hidden()
             .overlay(
-                // Secure container fills the space
                 SecureContainer {
                     content
                 }
@@ -106,7 +105,39 @@ private struct SecureContentView<Content: View>: View {
     }
 }
 
-// MARK: - Watermark Content View (visible only in capture)
+// MARK: - Auto Watermark Content View (auto-samples background)
+
+private struct AutoWatermarkContentView<Content: View>: View {
+    let content: Content
+    @State private var sampledColor: Color?
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            // Content underneath - visible in screenshots
+            content
+
+            // Secure opaque layer on top - hides content normally, disappears in screenshots
+            if let sampledColor {
+                SecureContainer {
+                    Rectangle()
+                        .fill(sampledColor)
+                        .ignoresSafeArea()
+                }
+            }
+        }
+        .background(
+            BackgroundColorSampler { color in
+                sampledColor = color
+            }
+        )
+    }
+}
+
+// MARK: - Watermark Content View (explicit background)
 
 private struct WatermarkContentView<Content: View>: View {
     let background: AnyShapeStyle
@@ -193,9 +224,110 @@ private struct _SecureContainerHelper<Content: View>: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Add hosting controller's view as subview if not already added
         if let hostingController, !uiView.subviews.contains(where: { $0.tag == 1009 }) {
             uiView.addSubview(hostingController.view)
+        }
+    }
+}
+
+// MARK: - Background Color Sampler
+
+private struct BackgroundColorSampler: UIViewRepresentable {
+    var onColor: @MainActor (Color) -> Void
+
+    func makeUIView(context: Context) -> SamplerView {
+        let view = SamplerView()
+        view.onColor = onColor
+        return view
+    }
+
+    func updateUIView(_ uiView: SamplerView, context: Context) {
+        uiView.onColor = onColor
+    }
+
+    final class SamplerView: UIView {
+        var onColor: (@MainActor (Color) -> Void)?
+        private var didSample = false
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard !didSample, window != nil else { return }
+            didSample = true
+
+            Task { @MainActor in
+                // Small delay to ensure the view hierarchy is fully rendered
+                try? await Task.sleep(for: .milliseconds(50))
+                if let color = self.sampleBackgroundColor() {
+                    self.onColor?(Color(uiColor: color))
+                }
+            }
+        }
+
+        @MainActor
+        private func sampleBackgroundColor() -> UIColor? {
+            guard let window = self.window else { return nil }
+
+            let inset: CGFloat = 2
+            let rectInWindow = self
+                .convert(self.bounds.insetBy(dx: inset, dy: inset), to: window)
+                .integral
+                .intersection(window.bounds)
+
+            guard rectInWindow.width > 1, rectInWindow.height > 1 else { return nil }
+
+            let wasHidden = self.isHidden
+            self.isHidden = true
+            defer { self.isHidden = wasHidden }
+
+            guard let cgImage = snapshot(window: window, rect: rectInWindow) else { return nil }
+            return averageColor(from: cgImage)
+        }
+
+        @MainActor
+        private func snapshot(window: UIWindow, rect: CGRect) -> CGImage? {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = window.screen.scale
+            format.opaque = false
+
+            let renderer = UIGraphicsImageRenderer(size: rect.size, format: format)
+            let image = renderer.image { ctx in
+                ctx.cgContext.translateBy(x: -rect.minX, y: -rect.minY)
+                window.layer.render(in: ctx.cgContext)
+            }
+
+            return image.cgImage
+        }
+
+        private func averageColor(from cgImage: CGImage) -> UIColor? {
+            let ciContext = CIContext(options: [
+                .workingColorSpace: NSNull(),
+                .outputColorSpace: NSNull()
+            ])
+
+            let input = CIImage(cgImage: cgImage)
+
+            let filter = CIFilter.areaAverage()
+            filter.inputImage = input
+            filter.extent = input.extent
+
+            guard let output = filter.outputImage else { return nil }
+
+            var rgba = [UInt8](repeating: 0, count: 4)
+            ciContext.render(
+                output,
+                toBitmap: &rgba,
+                rowBytes: 4,
+                bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                format: .RGBA8,
+                colorSpace: CGColorSpaceCreateDeviceRGB()
+            )
+
+            return UIColor(
+                red: CGFloat(rgba[0]) / 255,
+                green: CGFloat(rgba[1]) / 255,
+                blue: CGFloat(rgba[2]) / 255,
+                alpha: CGFloat(rgba[3]) / 255
+            )
         }
     }
 }

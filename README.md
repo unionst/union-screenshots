@@ -48,7 +48,7 @@ Text("CONFIDENTIAL")
     .screenshotMode(.watermark)
 ```
 
-By default, the system background is used to hide the watermark during normal viewing. You can specify any `ShapeStyle`:
+The background color is automatically sampled from the pixels behind the view. For explicit control, you can specify any `ShapeStyle`:
 
 ```swift
 Text("CONFIDENTIAL")
@@ -73,8 +73,8 @@ Text("Hello")
 enum ScreenshotMode {
     case visible                              // Normal behavior
     case secure                               // Hidden in screenshots
-    static var watermark                      // Visible only in screenshots (system background)
-    static func watermark(background: some ShapeStyle)  // Custom background
+    case watermark                            // Visible only in screenshots (auto background)
+    static func watermark(background: some ShapeStyle)  // Explicit background
 }
 
 func screenshotMode(_ mode: ScreenshotMode) -> some View
