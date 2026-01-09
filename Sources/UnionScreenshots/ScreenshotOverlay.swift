@@ -42,32 +42,71 @@ public func detectDisplayType() -> DisplayType {
     }
 }
 
-// MARK: - Cutout Dimensions
+// MARK: - Pass Through Window
 
-/// Returns the dimensions and position of the device cutout
-@MainActor
-public func cutoutFrame(in windowScene: UIWindowScene) -> CGRect? {
-    guard let window = windowScene.windows.first else { return nil }
+private class PassThroughWindow: UIWindow {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let hitView = super.hitTest(point, with: event),
+              let rootView = rootViewController?.view else {
+            return nil
+        }
 
-    let safeAreaTop = window.safeAreaInsets.top
-    let screenWidth = window.bounds.width
+        // Pass through touches that hit the root view directly
+        if hitView === rootView {
+            return nil
+        }
 
-    if safeAreaTop >= 59 {
-        // Dynamic Island: centered pill shape
-        let width: CGFloat = 126
-        let height: CGFloat = 37
-        let x = (screenWidth - width) / 2
-        let y: CGFloat = 11
-        return CGRect(x: x, y: y, width: width, height: height)
-    } else if safeAreaTop >= 44 {
-        // Notch: wider centered area
-        let width: CGFloat = 210
-        let height: CGFloat = 30
-        let x = (screenWidth - width) / 2
-        let y: CGFloat = 0
-        return CGRect(x: x, y: y, width: width, height: height)
-    } else {
-        return nil
+        return hitView
+    }
+}
+
+// MARK: - Window Extractor
+
+private struct WindowExtractor: UIViewRepresentable {
+    var onWindowFound: (UIWindow) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        DispatchQueue.main.async {
+            if let window = view.window {
+                onWindowFound(window)
+            }
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+// MARK: - Screenshot Overlay Content View
+
+private struct ScreenshotOverlayContentView<OverlayContent: View>: View {
+    let displayType: DisplayType
+    let alignment: HorizontalAlignment
+    let content: () -> OverlayContent
+
+    var body: some View {
+        GeometryReader { proxy in
+            content()
+                .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+                .offset(y: offset(for: displayType, safeAreaTop: proxy.safeAreaInsets.top))
+        }
+        .ignoresSafeArea()
+    }
+
+    private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
+        switch displayType {
+        case .dynamicIsland:
+            // Position below the Dynamic Island
+            return 11 + 37 + 8
+        case .notch:
+            // Position below the notch
+            return safeAreaTop + 8
+        case .none:
+            return 0
+        }
     }
 }
 
@@ -77,57 +116,62 @@ private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
     let alignment: HorizontalAlignment
     let overlayContent: () -> OverlayContent
 
+    @State private var overlayWindow: PassThroughWindow?
     @State private var displayType: DisplayType? = nil
 
     func body(content: Content) -> some View {
-        if let displayType {
-            content
-                .overlay {
-                    if displayType != .none {
-                        overlayView(for: displayType)
-                    }
-                }
-        } else {
-            content
-                .onAppear {
-                    displayType = detectDisplayType()
-                }
-        }
+        content
+            .background(WindowExtractor { mainWindow in
+                setupOverlayWindow(mainWindow)
+            })
+            .onAppear {
+                displayType = detectDisplayType()
+            }
+            .onChange(of: displayType) { _, newValue in
+                updateOverlayContent()
+            }
     }
 
-    @ViewBuilder
-    private func overlayView(for displayType: DisplayType) -> some View {
-        GeometryReader { proxy in
-            let safeArea = proxy.safeAreaInsets
+    private func setupOverlayWindow(_ mainWindow: UIWindow) {
+        guard overlayWindow == nil,
+              let windowScene = mainWindow.windowScene else { return }
 
-            overlayContent()
-                .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-                .frame(maxHeight: .infinity, alignment: .top)
-                .offset(y: offset(for: displayType, safeAreaTop: safeArea.top))
-        }
-        .ignoresSafeArea()
+        let window = PassThroughWindow(windowScene: windowScene)
+        window.windowLevel = .alert + 10
+        window.backgroundColor = .clear
+        window.isHidden = false
+        window.isUserInteractionEnabled = true
+
+        self.overlayWindow = window
+        updateOverlayContent()
     }
 
-    private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
-        switch displayType {
-        case .dynamicIsland:
-            // Position below the Dynamic Island
-            // Dynamic Island bottom is approximately at y = 48 (11 + 37)
-            return 11 + 37 + 8 // 8pt padding below island
-        case .notch:
-            // Position below the notch
-            // Notch area is within the safe area, so use safe area top
-            return safeAreaTop + 8
-        case .none:
-            return 0
+    private func updateOverlayContent() {
+        guard let window = overlayWindow,
+              let displayType = displayType,
+              displayType != .none else {
+            overlayWindow?.isHidden = true
+            return
         }
+
+        let hostingView = ScreenshotOverlayContentView(
+            displayType: displayType,
+            alignment: alignment,
+            content: overlayContent
+        )
+
+        let hosting = UIHostingController(rootView: hostingView)
+        hosting.view.backgroundColor = .clear
+
+        window.rootViewController = hosting
+        window.isHidden = false
     }
 }
 
 // MARK: - View Extension
 
 public extension View {
-    /// Positions content underneath the device's display cutout (Dynamic Island or notch).
+    /// Positions content underneath the device's Dynamic Island or notch using a window overlay.
     ///
     /// On devices with a Dynamic Island, the content appears just below the island.
     /// On devices with a notch, the content appears just below the notch.
@@ -136,7 +180,7 @@ public extension View {
     /// - Parameters:
     ///   - alignment: The horizontal alignment of the content (default: .center)
     ///   - content: A view builder that creates the content to display
-    /// - Returns: A view with the cutout overlay applied
+    /// - Returns: A view with the screenshot overlay applied
     ///
     /// Example:
     /// ```swift
