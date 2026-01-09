@@ -10,8 +10,8 @@ import SwiftUI
 /// An example view for testing all UnionScreenshots features.
 ///
 /// This view demonstrates:
-/// - Screenshot protection using `SecureView`
-/// - Screenshot protection using `.secure()` modifier
+/// - `.screenshotMode(.secure)` - content hidden in screenshots
+/// - `.screenshotMode(.watermark)` - content visible only in screenshots
 /// - Dynamic Island background overlay
 public struct _ScreenshotExample: View {
 
@@ -23,7 +23,8 @@ public struct _ScreenshotExample: View {
     public var body: some View {
         NavigationStack {
             List {
-                screenshotProtectionSection
+                secureSection
+                watermarkSection
                 dynamicIslandSection
                 instructionsSection
             }
@@ -42,43 +43,28 @@ public struct _ScreenshotExample: View {
         }
     }
 
-    // MARK: - Screenshot Protection Section
+    // MARK: - Secure Section
 
-    private var screenshotProtectionSection: some View {
+    private var secureSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Protected Content")
+                Text("Secure Content")
                     .font(.headline)
 
-                SecureView {
-                    VStack(spacing: 8) {
-                        Text("This text is protected")
-                            .font(.body)
-                            .fontWeight(.medium)
-                        Text(secretText)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.blue)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.blue.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 8) {
+                    Text("This text is protected")
+                        .font(.body)
+                        .fontWeight(.medium)
+                    Text(secretText)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.blue)
                 }
-            }
-            .padding(.vertical, 8)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Using Modifier")
-                    .font(.headline)
-
-                Text("Also protected via .secure()")
-                    .font(.body)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(.green.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .secure()
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .screenshotMode(.secure)
             }
             .padding(.vertical, 8)
 
@@ -95,9 +81,52 @@ public struct _ScreenshotExample: View {
             }
             .padding(.vertical, 8)
         } header: {
-            Text("Screenshot Protection")
+            Text(".screenshotMode(.secure)")
         } footer: {
-            Text("Take a screenshot to test. Protected content will appear blank in the screenshot.")
+            Text("Secure content will appear blank in screenshots.")
+        }
+    }
+
+    // MARK: - Watermark Section
+
+    private var watermarkSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Watermark Demo")
+                    .font(.headline)
+
+                ZStack {
+                    // This is the normal content
+                    VStack(spacing: 8) {
+                        Text("Normal viewing")
+                            .font(.body)
+                        Text("Take a screenshot!")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    // This watermark only appears in screenshots
+                    Text("SCREENSHOT")
+                        .font(.title2)
+                        .fontWeight(.black)
+                        .foregroundStyle(.red.opacity(0.6))
+                        .screenshotMode(.watermark(background: Color(.systemBackground)))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(.secondary.opacity(0.3), lineWidth: 1)
+                )
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text(".screenshotMode(.watermark)")
+        } footer: {
+            Text("The watermark only appears when you take a screenshot.")
         }
     }
 
@@ -136,8 +165,8 @@ public struct _ScreenshotExample: View {
             VStack(alignment: .leading, spacing: 12) {
                 instructionRow(number: 1, text: "Take a screenshot of this screen")
                 instructionRow(number: 2, text: "Check the screenshot in Photos")
-                instructionRow(number: 3, text: "Protected content should be blank")
-                instructionRow(number: 4, text: "Unprotected content should be visible")
+                instructionRow(number: 3, text: "Secure content should be blank")
+                instructionRow(number: 4, text: "Watermark should be visible")
             }
             .padding(.vertical, 8)
         } header: {

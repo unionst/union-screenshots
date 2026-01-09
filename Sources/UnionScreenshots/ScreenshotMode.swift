@@ -1,0 +1,165 @@
+//
+//  ScreenshotMode.swift
+//  UnionScreenshots
+//
+//  Created by Union on 1/9/26.
+//
+
+import SwiftUI
+
+// MARK: - Screenshot Mode
+
+/// Defines how a view behaves during screen capture.
+public enum ScreenshotMode {
+    /// The view is hidden during screenshots and screen recordings.
+    case secure
+
+    /// The view is only visible during screenshots and screen recordings.
+    /// The background color is used to hide the content during normal viewing.
+    case watermark(background: Color)
+}
+
+// MARK: - View Extension
+
+public extension View {
+    /// Controls how this view appears during screen capture.
+    ///
+    /// Use `.secure` to hide sensitive content from screenshots and recordings:
+    /// ```swift
+    /// Text("Secret Code: 1234")
+    ///     .screenshotMode(.secure)
+    /// ```
+    ///
+    /// Use `.watermark` to show content only in screenshots (hidden during normal use):
+    /// ```swift
+    /// Text("CONFIDENTIAL")
+    ///     .screenshotMode(.watermark(background: .white))
+    /// ```
+    ///
+    /// - Parameter mode: The screenshot behavior mode.
+    /// - Returns: A view with the specified screenshot behavior.
+    func screenshotMode(_ mode: ScreenshotMode) -> some View {
+        modifier(ScreenshotModeModifier(mode: mode))
+    }
+}
+
+// MARK: - Modifier
+
+private struct ScreenshotModeModifier: ViewModifier {
+    let mode: ScreenshotMode
+
+    func body(content: Content) -> some View {
+        switch mode {
+        case .secure:
+            SecureContentView { content }
+        case .watermark(let background):
+            WatermarkContentView(background: background) { content }
+        }
+    }
+}
+
+// MARK: - Secure Content View (hidden in capture)
+
+private struct SecureContentView<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .hidden()
+            .overlay(
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
+                }
+            )
+            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { size in
+                SecureContainerView(content: content, size: size)
+            }
+    }
+}
+
+// MARK: - Watermark Content View (visible only in capture)
+
+private struct WatermarkContentView<Content: View>: View {
+    let background: Color
+    let content: Content
+
+    init(background: Color, @ViewBuilder content: () -> Content) {
+        self.background = background
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .hidden()
+            .overlay(
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
+                }
+            )
+            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { size in
+                ZStack {
+                    // Content underneath - visible in screenshots
+                    content
+
+                    // Secure opaque layer on top - hides content normally, disappears in screenshots
+                    SecureContainerView(content: background, size: size)
+                }
+            }
+    }
+}
+
+// MARK: - Size Preference Key
+
+private struct ScreenshotModeSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
+    }
+}
+
+// MARK: - Secure Container (UIViewRepresentable)
+
+private struct SecureContainerView<Content: View>: UIViewRepresentable {
+    let content: Content
+    let size: CGSize
+
+    func makeUIView(context: Context) -> UIView {
+        let secureField = UITextField()
+        secureField.isSecureTextEntry = true
+
+        guard let secureContainer = secureField.subviews.first else {
+            return UIView()
+        }
+
+        secureContainer.translatesAutoresizingMaskIntoConstraints = false
+
+        let hostingController = UIHostingController(rootView: content)
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+
+        secureContainer.addSubview(hostingController.view)
+
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: secureContainer.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: secureContainer.bottomAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: secureContainer.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: secureContainer.trailingAnchor),
+        ])
+
+        return secureContainer
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        if let hostingView = uiView.subviews.first,
+           let hostingController = hostingView.next as? UIHostingController<Content> {
+            hostingController.rootView = content
+        }
+    }
+}
