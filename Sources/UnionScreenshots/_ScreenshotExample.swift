@@ -10,8 +10,8 @@ import SwiftUI
 /// An example view for testing all UnionScreenshots features.
 ///
 /// This view demonstrates:
-/// - Screenshot protection using `ScreenshotPreventView`
-/// - Screenshot protection using `.screenshotProtected()` modifier
+/// - Screenshot protection using `SecureView`
+/// - Screenshot protection using `.secure()` modifier
 /// - Dynamic Island background overlay
 public struct _ScreenshotExample: View {
 
@@ -50,7 +50,7 @@ public struct _ScreenshotExample: View {
                 Text("Protected Content")
                     .font(.headline)
 
-                ScreenshotPreventView {
+                SecureView {
                     VStack(spacing: 8) {
                         Text("This text is protected")
                             .font(.body)
@@ -72,13 +72,13 @@ public struct _ScreenshotExample: View {
                 Text("Using Modifier")
                     .font(.headline)
 
-                Text("Also protected via .screenshotProtected()")
+                Text("Also protected via .secure()")
                     .font(.body)
                     .padding()
                     .frame(maxWidth: .infinity)
                     .background(.green.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .screenshotProtected()
+                    .secure()
             }
             .padding(.vertical, 8)
 

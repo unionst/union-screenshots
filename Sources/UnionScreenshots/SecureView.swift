@@ -1,5 +1,5 @@
 //
-//  ScreenshotPreventView.swift
+//  SecureView.swift
 //  UnionScreenshots
 //
 //  Created by Union on 1/9/26.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-// MARK: - Screenshot Prevent View
+// MARK: - Secure View
 
 /// A container view that hides its content from screenshots, screen recordings,
 /// and other screen capture methods.
@@ -22,18 +22,18 @@ import SwiftUI
 ///
 /// Example:
 /// ```swift
-/// ScreenshotPreventView {
+/// SecureView {
 ///     Text("Sensitive Information")
 ///         .font(.title)
 /// }
 /// ```
 ///
 /// - Note: This technique works on iOS 15 and later.
-public struct ScreenshotPreventView<Content: View>: View {
+public struct SecureView<Content: View>: View {
 
     private var content: Content
 
-    /// Creates a screenshot-protected container view.
+    /// Creates a secure container view.
     /// - Parameter content: The content to protect from screen capture.
     public init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content()
@@ -47,21 +47,21 @@ public struct ScreenshotPreventView<Content: View>: View {
             .overlay(
                 GeometryReader { geometry in
                     Color.clear
-                        .preference(key: ScreenshotPreventSizeKey.self, value: geometry.size)
+                        .preference(key: SecureViewSizeKey.self, value: geometry.size)
                 }
             )
-            .onPreferenceChange(ScreenshotPreventSizeKey.self) { size in
+            .onPreferenceChange(SecureViewSizeKey.self) { size in
                 contentSize = size
             }
             .overlay(
-                _ScreenshotPreventHelper(content: content, size: contentSize)
+                SecureViewHelper(content: content, size: contentSize)
             )
     }
 }
 
 // MARK: - Size Preference Key
 
-private struct ScreenshotPreventSizeKey: PreferenceKey {
+private struct SecureViewSizeKey: PreferenceKey {
     static let defaultValue: CGSize = .zero
 
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
@@ -71,7 +71,7 @@ private struct ScreenshotPreventSizeKey: PreferenceKey {
 
 // MARK: - UIViewRepresentable Helper
 
-private struct _ScreenshotPreventHelper<Content: View>: UIViewRepresentable {
+private struct SecureViewHelper<Content: View>: UIViewRepresentable {
     let content: Content
     let size: CGSize
 
@@ -115,9 +115,9 @@ private struct _ScreenshotPreventHelper<Content: View>: UIViewRepresentable {
 // MARK: - View Modifier
 
 /// A view modifier that protects content from screenshots and screen recordings.
-private struct ScreenshotPreventModifier: ViewModifier {
+private struct SecureModifier: ViewModifier {
     func body(content: Content) -> some View {
-        ScreenshotPreventView {
+        SecureView {
             content
         }
     }
@@ -134,11 +134,11 @@ public extension View {
     /// Example:
     /// ```swift
     /// Text("Secret Code: 1234")
-    ///     .screenshotProtected()
+    ///     .secure()
     /// ```
     ///
     /// - Returns: A view that is protected from screen capture.
-    func screenshotProtected() -> some View {
-        modifier(ScreenshotPreventModifier())
+    func secure() -> some View {
+        modifier(SecureModifier())
     }
 }
