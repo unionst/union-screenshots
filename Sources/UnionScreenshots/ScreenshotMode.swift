@@ -94,18 +94,9 @@ private struct SecureContentView<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .hidden()
-            .overlay(
-                GeometryReader { geometry in
-                    Color.clear
-                        .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
-                }
-            )
-            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { _ in
-                SecureContainerView(content: content)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+        SecureContainer {
+            content
+        }
     }
 }
 
@@ -121,32 +112,57 @@ private struct WatermarkContentView<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .hidden()
+        ZStack {
+            // Content underneath - visible in screenshots
+            content
+
+            // Secure opaque layer on top - hides content normally, disappears in screenshots
+            SecureContainer {
+                Rectangle()
+                    .fill(background)
+                    .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+// MARK: - Secure Container
+
+private struct SecureContainer<Content: View>: View {
+    var content: Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content()
+    }
+
+    @State private var hostingController: UIHostingController<Content>?
+
+    var body: some View {
+        _SecureContainerHelper(hostingController: $hostingController)
             .overlay(
                 GeometryReader { geometry in
                     Color.clear
-                        .preference(key: ScreenshotModeSizeKey.self, value: geometry.size)
+                        .preference(key: SecureContainerSizeKey.self, value: geometry.size)
+                        .onPreferenceChange(SecureContainerSizeKey.self) { size in
+                            if size != .zero {
+                                if hostingController == nil {
+                                    hostingController = UIHostingController(rootView: content)
+                                    hostingController?.view.backgroundColor = .clear
+                                    hostingController?.view.tag = 1009
+                                    hostingController?.view.frame = CGRect(origin: .zero, size: size)
+                                } else {
+                                    hostingController?.view.frame = CGRect(origin: .zero, size: size)
+                                }
+                            }
+                        }
                 }
             )
-            .overlayPreferenceValue(ScreenshotModeSizeKey.self) { _ in
-                ZStack {
-                    // Content underneath - visible in screenshots
-                    content
-
-                    // Secure opaque layer on top - hides content normally, disappears in screenshots
-                    SecureContainerView(
-                        content: Rectangle().fill(background)
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
     }
 }
 
 // MARK: - Size Preference Key
 
-private struct ScreenshotModeSizeKey: PreferenceKey {
+private struct SecureContainerSizeKey: PreferenceKey {
     static let defaultValue: CGSize = .zero
 
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
@@ -154,41 +170,26 @@ private struct ScreenshotModeSizeKey: PreferenceKey {
     }
 }
 
-// MARK: - Secure Container (UIViewRepresentable)
+// MARK: - Secure Container Helper (UIViewRepresentable)
 
-private struct SecureContainerView<Content: View>: UIViewRepresentable {
-    let content: Content
+private struct _SecureContainerHelper<Content: View>: UIViewRepresentable {
+    @Binding var hostingController: UIHostingController<Content>?
 
     func makeUIView(context: Context) -> UIView {
         let secureField = UITextField()
         secureField.isSecureTextEntry = true
 
-        guard let secureContainer = secureField.subviews.first else {
-            return UIView()
+        if let textLayoutView = secureField.subviews.first {
+            return textLayoutView
         }
 
-        secureContainer.translatesAutoresizingMaskIntoConstraints = false
-
-        let hostingController = UIHostingController(rootView: content)
-        hostingController.view.backgroundColor = .clear
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-
-        secureContainer.addSubview(hostingController.view)
-
-        NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: secureContainer.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: secureContainer.bottomAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: secureContainer.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: secureContainer.trailingAnchor),
-        ])
-
-        return secureContainer
+        return UIView()
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {
-        if let hostingView = uiView.subviews.first,
-           let hostingController = hostingView.next as? UIHostingController<Content> {
-            hostingController.rootView = content
+        // Add hosting controller's view as subview if not already added
+        if let hostingController, !uiView.subviews.contains(where: { $0.tag == 1009 }) {
+            uiView.addSubview(hostingController.view)
         }
     }
 }
