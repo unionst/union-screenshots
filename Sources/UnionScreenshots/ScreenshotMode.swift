@@ -70,17 +70,17 @@ public extension View {
     ///
     /// ```swift
     /// Text("Secret: 1234")
-    ///     .captureReplacement {
+    ///     .screenshotReplacement {
     ///         Text("Nice try!")
     ///     }
     /// ```
     ///
     /// - Parameter replacement: A view builder that creates the replacement content.
     /// - Returns: A view that swaps content during screen capture.
-    func captureReplacement<Replacement: View>(
+    func screenshotReplacement<Replacement: View>(
         @ViewBuilder _ replacement: @escaping () -> Replacement
     ) -> some View {
-        modifier(CaptureReplacementModifier(replacement: replacement))
+        modifier(ScreenshotReplacementModifier(replacement: replacement))
     }
 }
 
@@ -103,19 +103,19 @@ private struct ScreenshotModeModifier: ViewModifier {
     }
 }
 
-// MARK: - Capture Replacement Modifier
+// MARK: - Screenshot Replacement Modifier
 
-private struct CaptureReplacementModifier<Replacement: View>: ViewModifier {
+private struct ScreenshotReplacementModifier<Replacement: View>: ViewModifier {
     let replacement: () -> Replacement
 
     func body(content: Content) -> some View {
-        CaptureReplacementView(replacement: replacement) { content }
+        ScreenshotReplacementView(replacement: replacement) { content }
     }
 }
 
-// MARK: - Capture Replacement View
+// MARK: - Screenshot Replacement View
 
-private struct CaptureReplacementView<Original: View, Replacement: View>: View {
+private struct ScreenshotReplacementView<Original: View, Replacement: View>: View {
     let original: Original
     let replacement: () -> Replacement
 

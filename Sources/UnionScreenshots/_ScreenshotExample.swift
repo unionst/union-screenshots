@@ -13,7 +13,7 @@ import SwiftUI
 /// - `.screenshotMode(.secure)` - content hidden in screenshots
 /// - `.screenshotMode(.watermark)` - content visible only in screenshots
 /// - `.screenshotMode(.visible)` - normal behavior (for conditional logic)
-/// - `.captureReplacement { }` - replace content in screenshots
+/// - `.screenshotReplacement { }` - replace content in screenshots
 /// - Dynamic Island background overlay
 public struct _ScreenshotExample: View {
 
@@ -163,7 +163,7 @@ public struct _ScreenshotExample: View {
     private var replacementSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Capture Replacement")
+                Text("Screenshot Replacement")
                     .font(.headline)
 
                 Text("Secret: 1234-5678")
@@ -174,7 +174,7 @@ public struct _ScreenshotExample: View {
                     .padding()
                     .background(.blue.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .captureReplacement {
+                    .screenshotReplacement {
                         Text("Nice try! 😏")
                             .font(.title2)
                             .fontWeight(.bold)
@@ -187,7 +187,7 @@ public struct _ScreenshotExample: View {
             }
             .padding(.vertical, 8)
         } header: {
-            Text(".captureReplacement { }")
+            Text(".screenshotReplacement { }")
         } footer: {
             Text("The secret is replaced with different content in screenshots.")
         }

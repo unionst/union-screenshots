@@ -8,12 +8,11 @@ A SwiftUI package for controlling view visibility during screen capture and disp
 
 ## Features
 
-- **Screenshot Mode**: Control how views appear in screenshots and screen recordings
-- **Capture Replacement**: Show different content in screenshots
+- **Screenshot Mode**: Hide or reveal views in screenshots and recordings
+- **Screenshot Replacement**: Swap views with different content in screenshots
 - **Dynamic Island Background**: Display content behind the Dynamic Island or notch
 - Automatic background color sampling for watermarks
-- Automatic device type detection
-- Pass-through touch handling
+- Light/dark mode support
 
 ## Requirements
 
@@ -26,86 +25,65 @@ Add the package to your Xcode project:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/unionst/union-screenshots.git", from: "1.0.0")
+    .package(url: "https://github.com/unionst/union-screenshots.git", from: "1.2.0")
 ]
 ```
 
 ## Screenshot Mode
 
-Control how views appear during screen capture using the `.screenshotMode()` modifier.
+Control how views appear during screen capture.
 
-### Secure (Hidden in Screenshots)
+### Secure
 
-Hide sensitive content from screenshots and screen recordings:
+Hide content from screenshots and recordings:
 
 ```swift
 Text("Secret Code: 1234")
     .screenshotMode(.secure)
 ```
 
-### Watermark (Visible Only in Screenshots)
+### Watermark
 
-Show content only when a screenshot is taken:
+Show content only in screenshots (hidden during normal use):
 
 ```swift
 Text("CONFIDENTIAL")
     .screenshotMode(.watermark)
 ```
 
-The background color is automatically sampled from the pixels behind the view. For explicit control, you can specify any `ShapeStyle`:
+The background color is automatically sampled. For explicit control:
 
 ```swift
 Text("CONFIDENTIAL")
-    .screenshotMode(.watermark(background: .white))  // color
+    .screenshotMode(.watermark(background: .white))
 
 Text("CONFIDENTIAL")
-    .screenshotMode(.watermark(background: .regularMaterial))  // material
+    .screenshotMode(.watermark(background: .regularMaterial))
 ```
 
-### Visible (Normal Behavior)
+### Visible
 
-Use `.visible` for conditional logic:
+Use for conditional logic:
 
 ```swift
 Text("Hello")
     .screenshotMode(isProtected ? .secure : .visible)
 ```
 
-### Capture Replacement
+## Screenshot Replacement
 
 Replace a view with different content in screenshots:
 
 ```swift
 Text("Secret: 1234")
-    .captureReplacement {
+    .screenshotReplacement {
         Text("Nice try!")
     }
-```
-
-The original view is shown during normal use, but when a screenshot is taken, the replacement content appears instead.
-
-### API
-
-```swift
-enum ScreenshotMode {
-    case visible                              // Normal behavior
-    case secure                               // Hidden in screenshots
-    case watermark                            // Visible only in screenshots (auto background)
-    static func watermark(background: some ShapeStyle)  // Explicit background
-}
-
-func screenshotMode(_ mode: ScreenshotMode) -> some View
-
-func captureReplacement<Replacement: View>(
-    @ViewBuilder _ replacement: () -> Replacement
-) -> some View
 ```
 
 ## Dynamic Island Background
 
 Display content behind the Dynamic Island or notch.
-
-### Basic Usage
 
 ```swift
 ContentView()
@@ -116,36 +94,44 @@ ContentView()
     }
 ```
 
-### Conditional Visibility
+With conditional visibility:
 
 ```swift
-NavigationStack(path: $path) {
-    // ...
-}
-.dynamicIslandBackground(!path.isEmpty) {
-    Text("Recording")
-        .font(.caption)
-        .foregroundStyle(.red)
-}
-```
-
-### Custom Alignment
-
-```swift
-.dynamicIslandBackground(alignment: .leading) {
+.dynamicIslandBackground(isRecording) {
     HStack {
-        Circle()
-            .fill(.red)
-            .frame(width: 8, height: 8)
-        Text("Live")
-            .font(.caption2)
+        Circle().fill(.red).frame(width: 8, height: 8)
+        Text("REC").font(.caption2)
     }
 }
 ```
 
-### API
+With alignment:
 
 ```swift
+.dynamicIslandBackground(alignment: .leading) {
+    Text("Live").font(.caption2)
+}
+```
+
+## API
+
+```swift
+// Screenshot modes
+enum ScreenshotMode {
+    case visible
+    case secure
+    case watermark
+    static func watermark(background: some ShapeStyle) -> ScreenshotMode
+}
+
+func screenshotMode(_ mode: ScreenshotMode) -> some View
+
+// Screenshot replacement
+func screenshotReplacement<Replacement: View>(
+    @ViewBuilder _ replacement: () -> Replacement
+) -> some View
+
+// Dynamic Island background
 func dynamicIslandBackground<Content: View>(
     _ isVisible: Bool = true,
     alignment: HorizontalAlignment = .center,
@@ -155,9 +141,9 @@ func dynamicIslandBackground<Content: View>(
 
 ## How It Works
 
-**Screenshot Mode** leverages the same mechanism iOS uses for `SecureField` to hide content from screen capture. Content inside a secure container is visible during normal use but hidden in screenshots, recordings, and screen mirroring.
+**Screenshot Mode** uses the same mechanism iOS uses for `SecureField` to hide content from screen capture.
 
-**Dynamic Island Background** creates a separate `UIWindow` overlay at a high window level that persists across navigation and appears behind the Dynamic Island cutout.
+**Dynamic Island Background** creates a `UIWindow` overlay at a high window level that appears behind the Dynamic Island cutout.
 
 ## License
 
