@@ -2,7 +2,9 @@
 
 A SwiftUI package for controlling view visibility during screen capture and displaying content behind the Dynamic Island.
 
-![Demo](demo.gif)
+| Screenshot Mode | Dynamic Island |
+|:---:|:---:|
+| ![Watermark Demo](watermark-demo.gif) | ![Dynamic Island Demo](demo.gif) |
 
 ## Features
 
