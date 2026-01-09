@@ -11,6 +11,9 @@ import SwiftUI
 
 /// Defines how a view behaves during screen capture.
 public enum ScreenshotMode {
+    /// The view behaves normally, visible in both regular viewing and screenshots.
+    case visible
+
     /// The view is hidden during screenshots and screen recordings.
     case secure
 
@@ -23,6 +26,12 @@ public enum ScreenshotMode {
 
 public extension View {
     /// Controls how this view appears during screen capture.
+    ///
+    /// Use `.visible` for normal behavior (useful for conditional logic):
+    /// ```swift
+    /// Text("Hello")
+    ///     .screenshotMode(isProtected ? .secure : .visible)
+    /// ```
     ///
     /// Use `.secure` to hide sensitive content from screenshots and recordings:
     /// ```swift
@@ -50,6 +59,8 @@ private struct ScreenshotModeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         switch mode {
+        case .visible:
+            content
         case .secure:
             SecureContentView { content }
         case .watermark(let background):
