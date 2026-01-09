@@ -1,5 +1,5 @@
 //
-//  ScreenshotCutout.swift
+//  ScreenshotOverlay.swift
 //  UnionScreenshots
 //
 //  Created by Union on 1/8/26.
@@ -7,10 +7,10 @@
 
 import SwiftUI
 
-// MARK: - Device Cutout Type
+// MARK: - Display Type
 
-/// The type of display cutout on the current device
-public enum DeviceCutout: Sendable {
+/// The type of top display area on the current device
+public enum DisplayType: Sendable {
     /// Dynamic Island (iPhone 14 Pro and later)
     case dynamicIsland
     /// Notch (iPhone X through iPhone 14)
@@ -23,7 +23,7 @@ public enum DeviceCutout: Sendable {
 
 /// Detects the type of display cutout on the current device
 @MainActor
-public func detectDeviceCutout() -> DeviceCutout {
+public func detectDisplayType() -> DisplayType {
     guard let windowScene = UIApplication.shared.connectedScenes
         .compactMap({ $0 as? UIWindowScene })
         .first(where: { $0.activationState == .foregroundActive }) ?? UIApplication.shared.connectedScenes
@@ -71,43 +71,43 @@ public func cutoutFrame(in windowScene: UIWindowScene) -> CGRect? {
     }
 }
 
-// MARK: - Screenshot Cutout Modifier
+// MARK: - Screenshot Overlay Modifier
 
-private struct ScreenshotCutoutModifier<CutoutContent: View>: ViewModifier {
+private struct ScreenshotOverlayModifier<OverlayContent: View>: ViewModifier {
     let alignment: HorizontalAlignment
-    let cutoutContent: () -> CutoutContent
+    let overlayContent: () -> OverlayContent
 
-    @State private var deviceCutout: DeviceCutout? = nil
+    @State private var displayType: DisplayType? = nil
 
     func body(content: Content) -> some View {
-        if let cutout = deviceCutout {
+        if let displayType {
             content
                 .overlay(alignment: .top) {
-                    if cutout != .none {
-                        cutoutOverlay(for: cutout)
+                    if displayType != .none {
+                        overlayView(for: displayType)
                     }
                 }
         } else {
             content
                 .onAppear {
-                    deviceCutout = detectDeviceCutout()
+                    displayType = detectDisplayType()
                 }
         }
     }
 
     @ViewBuilder
-    private func cutoutOverlay(for cutout: DeviceCutout) -> some View {
+    private func overlayView(for displayType: DisplayType) -> some View {
         GeometryReader { proxy in
             let safeArea = proxy.safeAreaInsets
 
-            cutoutContent()
+            overlayContent()
                 .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-                .offset(y: offsetForCutout(cutout, safeAreaTop: safeArea.top))
+                .offset(y: offset(for: displayType, safeAreaTop: safeArea.top))
         }
     }
 
-    private func offsetForCutout(_ cutout: DeviceCutout, safeAreaTop: CGFloat) -> CGFloat {
-        switch cutout {
+    private func offset(for displayType: DisplayType, safeAreaTop: CGFloat) -> CGFloat {
+        switch displayType {
         case .dynamicIsland:
             // Position below the Dynamic Island
             // Dynamic Island bottom is approximately at y = 48 (11 + 37)
@@ -139,16 +139,16 @@ public extension View {
     /// Example:
     /// ```swift
     /// ContentView()
-    ///     .screenshotCutout {
+    ///     .screenshotOverlay {
     ///         Text("Recording")
     ///             .font(.caption)
     ///             .foregroundStyle(.red)
     ///     }
     /// ```
-    func screenshotCutout<Content: View>(
+    func screenshotOverlay<Content: View>(
         alignment: HorizontalAlignment = .center,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        modifier(ScreenshotCutoutModifier(alignment: alignment, cutoutContent: content))
+        modifier(ScreenshotOverlayModifier(alignment: alignment, overlayContent: content))
     }
 }
