@@ -297,7 +297,9 @@ private struct ScreenshotReplacementModifier<Replacement: View>: ViewModifier {
 private struct ScreenshotReplacementView<Original: View, Replacement: View>: View {
     let original: Original
     let replacement: () -> Replacement
+    @State private var suppressForTransition = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     init(replacement: @escaping () -> Replacement, @ViewBuilder original: () -> Original) {
         self.original = original()
@@ -308,6 +310,10 @@ private struct ScreenshotReplacementView<Original: View, Replacement: View>: Vie
         colorScheme == .dark ? .black : .white
     }
 
+    private var isAppInactive: Bool {
+        scenePhase == .inactive || scenePhase == .background
+    }
+
     var body: some View {
         // Use hidden original for sizing, then overlay the actual content
         original
@@ -316,16 +322,33 @@ private struct ScreenshotReplacementView<Original: View, Replacement: View>: Vie
                 ZStack {
                     replacement()
 
-                    SecureContainer {
+                    // When app is inactive/background or during transitions, show original directly
+                    // Otherwise use SecureContainer which hides in screenshots
+                    if isAppInactive || suppressForTransition {
                         backgroundColor
                             .overlay {
                                 original
                             }
+                    } else {
+                        SecureContainer {
+                            backgroundColor
+                                .overlay {
+                                    original
+                                }
+                        }
+                        .id(colorScheme)
                     }
-                    .id(colorScheme)
                 }
             }
             .clipped()
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                suppressForTransition = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    suppressForTransition = false
+                }
+            }
     }
 }
 
@@ -354,10 +377,16 @@ private struct SecureContentView<Content: View>: View {
 private struct AutoWatermarkContentView<Content: View>: View {
     let content: Content
     @State private var sampledColor: Color?
+    @State private var suppressForTransition = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
+    }
+
+    private var isAppInactive: Bool {
+        scenePhase == .inactive || scenePhase == .background
     }
 
     var body: some View {
@@ -371,21 +400,38 @@ private struct AutoWatermarkContentView<Content: View>: View {
                 .id(colorScheme) // Force recreation on color scheme change
             )
             .overlay {
-                // Only show content after sampling completes
-                if let sampledColor {
+                // Suppress watermark during lifecycle transitions to avoid flash
+                if !suppressForTransition, let sampledColor {
                     ZStack {
                         content
 
-                        SecureContainer {
+                        // When app is inactive/background, show the cover to hide watermark
+                        // Otherwise use SecureContainer which hides in screenshots
+                        if isAppInactive {
                             Rectangle()
                                 .fill(sampledColor)
                                 .ignoresSafeArea()
+                                .allowsHitTesting(false)
+                        } else {
+                            SecureContainer {
+                                Rectangle()
+                                    .fill(sampledColor)
+                                    .ignoresSafeArea()
+                            }
                         }
                     }
                 }
             }
             .onChange(of: colorScheme) {
                 sampledColor = nil // Reset to trigger re-sample
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                suppressForTransition = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    suppressForTransition = false
+                }
             }
     }
 }
@@ -395,22 +441,49 @@ private struct AutoWatermarkContentView<Content: View>: View {
 private struct WatermarkContentView<Content: View>: View {
     let background: AnyShapeStyle
     let content: Content
+    @State private var suppressForTransition = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init(background: AnyShapeStyle, @ViewBuilder content: () -> Content) {
         self.background = background
         self.content = content()
     }
 
-    var body: some View {
-        ZStack {
-            // Content underneath - visible in screenshots
-            content
+    private var isAppInactive: Bool {
+        scenePhase == .inactive || scenePhase == .background
+    }
 
-            // Secure opaque layer on top - hides content normally, disappears in screenshots
-            SecureContainer {
-                Rectangle()
-                    .fill(background)
-                    .ignoresSafeArea()
+    var body: some View {
+        Group {
+            // Suppress watermark during lifecycle transitions to avoid flash
+            if !suppressForTransition {
+                ZStack {
+                    // Content underneath - visible in screenshots
+                    content
+
+                    // When app is inactive/background, show the cover to hide watermark
+                    // Otherwise use SecureContainer which hides in screenshots
+                    if isAppInactive {
+                        Rectangle()
+                            .fill(background)
+                            .ignoresSafeArea()
+                            .allowsHitTesting(false)
+                    } else {
+                        SecureContainer {
+                            Rectangle()
+                                .fill(background)
+                                .ignoresSafeArea()
+                        }
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            suppressForTransition = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                suppressForTransition = false
             }
         }
     }
@@ -500,16 +573,36 @@ private struct BackgroundColorSampler: UIViewRepresentable {
 
     final class SamplerView: UIView {
         var onColor: (@MainActor (Color) -> Void)?
+        private var lastSampledColor: UIColor?
+        private var sampleTask: Task<Void, Never>?
+        private var hasInitialSample = false
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
             guard window != nil else { return }
+            scheduleSample(delay: 500)
+        }
 
-            Task { @MainActor in
-                // Delay to ensure the view hierarchy is fully rendered
-                try? await Task.sleep(for: .milliseconds(100))
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            // Re-sample on layout changes to catch UICollectionView cell setup
+            if window != nil && hasInitialSample {
+                scheduleSample(delay: 100)
+            }
+        }
+
+        private func scheduleSample(delay: Int) {
+            sampleTask?.cancel()
+            sampleTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(delay))
+                guard !Task.isCancelled else { return }
                 if let color = self.sampleBackgroundColor() {
-                    self.onColor?(Color(uiColor: color))
+                    // Only notify if color changed
+                    if self.lastSampledColor != color {
+                        self.lastSampledColor = color
+                        self.onColor?(Color(uiColor: color))
+                    }
+                    self.hasInitialSample = true
                 }
             }
         }
