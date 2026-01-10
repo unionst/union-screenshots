@@ -6,6 +6,167 @@
 //
 
 import SwiftUI
+import UIKit
+
+// MARK: - UIKit Watermark View
+
+/// A UIView that only appears in screenshots and screen recordings.
+/// The content is hidden during normal use but becomes visible when captured.
+///
+/// Example:
+/// ```swift
+/// let watermark = UIScreenshotWatermarkView()
+///
+/// let label = UILabel()
+/// label.text = "Wavelength"
+/// watermark.contentView.addSubview(label)
+///
+/// view.addSubview(watermark)
+/// ```
+public class UIScreenshotWatermarkView: UIView {
+    /// The container for content that should only appear in screenshots.
+    /// Add your subviews to this view.
+    public let contentView = UIView()
+
+    private let secureField = UITextField()
+    private var secureContainer: UIView?
+    private var coverView: UIView?
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+
+    private func setupView() {
+        backgroundColor = .clear
+
+        // Content view holds the watermark content (at bottom layer)
+        contentView.backgroundColor = .clear
+        addSubview(contentView)
+
+        // Secure text field on top - setting isSecureTextEntry creates a special container
+        // that is hidden in screenshots
+        secureField.isSecureTextEntry = true
+        secureField.isUserInteractionEnabled = false
+        secureField.backgroundColor = .clear
+        addSubview(secureField)
+
+        // Get the secure container that iOS creates inside the text field
+        if let container = secureField.subviews.first {
+            secureContainer = container
+
+            // Add opaque cover inside secure container
+            // This cover hides content normally, but disappears in screenshots
+            let cover = UIView()
+            cover.backgroundColor = .white // Will be updated in didMoveToWindow
+            container.addSubview(cover)
+            coverView = cover
+        }
+    }
+
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        contentView.frame = bounds
+        secureField.frame = bounds
+        secureContainer?.frame = bounds
+        coverView?.frame = bounds
+    }
+
+    public override func didMoveToWindow() {
+        super.didMoveToWindow()
+        updateCoverColor()
+    }
+
+    public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+            updateCoverColor()
+        }
+    }
+
+    private func updateCoverColor() {
+        // Walk up hierarchy to find background color
+        var current: UIView? = superview
+        while let view = current {
+            if let bg = view.backgroundColor, bg != .clear {
+                coverView?.backgroundColor = bg
+                return
+            }
+            current = view.superview
+        }
+        // Fallback to system background
+        coverView?.backgroundColor = traitCollection.userInterfaceStyle == .dark ? .black : .white
+    }
+
+    /// Manually set the cover color if auto-detection doesn't work for your use case.
+    public func setCoverColor(_ color: UIColor) {
+        coverView?.backgroundColor = color
+    }
+}
+
+// MARK: - UIKit Secure View
+
+/// A UIView that is hidden in screenshots and screen recordings.
+/// The content is visible during normal use but disappears when captured.
+///
+/// Example:
+/// ```swift
+/// let secureView = UISecureView()
+///
+/// let secretLabel = UILabel()
+/// secretLabel.text = "Secret Code: 1234"
+/// secureView.contentView.addSubview(secretLabel)
+///
+/// view.addSubview(secureView)
+/// ```
+public class UISecureView: UIView {
+    /// The container for content that should be hidden in screenshots.
+    /// Add your subviews to this view.
+    public let contentView = UIView()
+
+    private let secureField = UITextField()
+    private var secureContainer: UIView?
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+
+    private func setupView() {
+        backgroundColor = .clear
+
+        // Secure text field - setting isSecureTextEntry creates a special container subview
+        secureField.isSecureTextEntry = true
+        secureField.isUserInteractionEnabled = false
+        secureField.backgroundColor = .clear
+        addSubview(secureField)
+
+        // Get the secure container and add content inside it
+        // Content inside the secure container will be hidden in screenshots
+        if let container = secureField.subviews.first {
+            secureContainer = container
+            contentView.backgroundColor = .clear
+            container.addSubview(contentView)
+        }
+    }
+
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        secureField.frame = bounds
+        secureContainer?.frame = bounds
+        contentView.frame = bounds
+    }
+}
 
 // MARK: - Screenshot Mode
 
@@ -82,6 +243,24 @@ public extension View {
     ) -> some View {
         modifier(ScreenshotReplacementModifier(replacement: replacement))
     }
+
+    /// Conditionally replaces this view with different content during screen capture.
+    ///
+    /// - Parameters:
+    ///   - enabled: Whether the replacement should be active.
+    ///   - replacement: A view builder that creates the replacement content.
+    /// - Returns: A view that swaps content during screen capture when enabled.
+    @ViewBuilder
+    func screenshotReplacement<Replacement: View>(
+        enabled: Bool,
+        @ViewBuilder _ replacement: @escaping () -> Replacement
+    ) -> some View {
+        if enabled {
+            modifier(ScreenshotReplacementModifier(replacement: replacement))
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Modifier
@@ -118,26 +297,30 @@ private struct ScreenshotReplacementModifier<Replacement: View>: ViewModifier {
 private struct ScreenshotReplacementView<Original: View, Replacement: View>: View {
     let original: Original
     let replacement: () -> Replacement
+    @Environment(\.colorScheme) private var colorScheme
 
     init(replacement: @escaping () -> Replacement, @ViewBuilder original: () -> Original) {
         self.original = original()
         self.replacement = replacement
     }
 
+    private var backgroundColor: Color {
+        colorScheme == .dark ? .black : .white
+    }
+
     var body: some View {
-        original
-            .hidden()
-            .overlay {
-                // Original content - visible normally, hidden in screenshots
-                SecureContainer {
-                    original
-                }
+        ZStack {
+            replacement()
+
+            SecureContainer {
+                backgroundColor
+                    .overlay {
+                        original
+                    }
             }
-            .overlay {
-                // Replacement content - hidden normally, visible in screenshots
-                replacement()
-                    .screenshotMode(.watermark)
-            }
+            .id(colorScheme)
+        }
+        .clipped()
     }
 }
 
