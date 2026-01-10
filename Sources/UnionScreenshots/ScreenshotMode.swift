@@ -309,18 +309,23 @@ private struct ScreenshotReplacementView<Original: View, Replacement: View>: Vie
     }
 
     var body: some View {
-        ZStack {
-            replacement()
+        // Use hidden original for sizing, then overlay the actual content
+        original
+            .hidden()
+            .overlay {
+                ZStack {
+                    replacement()
 
-            SecureContainer {
-                backgroundColor
-                    .overlay {
-                        original
+                    SecureContainer {
+                        backgroundColor
+                            .overlay {
+                                original
+                            }
                     }
+                    .id(colorScheme)
+                }
             }
-            .id(colorScheme)
-        }
-        .clipped()
+            .clipped()
     }
 }
 
